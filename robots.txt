@@ -1,0 +1,7 @@
+Crawl-delay: 600
+
+# start nipl.net common robots.txt
+User-Agent: OmniExplorer_Bot
+Disallow: /
+# end
+

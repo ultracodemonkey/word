@@ -1,0 +1,315 @@
+#!/usr/bin/perl
+
+use strict; use warnings;
+
+use CGI ':all';
+
+my $MODIFIED_DATE = "Wed, 16 Nov 2005 12:44:39 GMT";
+  # all replies will have this in the Last-Modified header,
+  # an attempt to get googlebot to back off!
+
+my $textcolor = "white";
+my $bgcolor = "midnightblue";
+my $numbercolor = "yellow";
+my $highlightcolor = "yellow";
+my $bow = "";
+
+if (param("bow")) {
+	$bow = ".bow";
+	$textcolor = "black";
+	$bgcolor = "white";
+	$numbercolor = "blue";
+	$highlightcolor = "blue";
+}
+
+my $col_gap = 16;
+my $row_gap = 8;
+my $margin = 4;
+my $screen_width = param("width") || 800;
+my $window_width = $screen_width - 30;
+my $cols_per_screen = param("cps") || 3;
+
+use IO::File;
+use CGI::Carp 'fatalsToBrowser';
+
+my $path = $ENV{PATH_TRANSLATED};
+# e.g. quran/khalifa,literal/001
+
+#$path =~ s,/x/quiki/[^/]*,,; # hack around weirdness with bible.nipl.net and quran.nipl.net !
+
+if ($path !~ /.html$/) {
+	warn "redir: $path";
+	$path =~ s,/var/www/.*?/,,;  # XXX super dodgy!
+	$path =~ s,/?$,/index.html,;
+	print "Location: http://word.ai.ki/x/quiki/$path\r\n\r\n";
+	exit;
+}
+
+$path =~ s,(/index.html|\.html)(\?|$),$2,; # DODGY HACK!
+
+$path =~ s/ /_/g;
+
+my $files = expand_abbrev_path($path);
+
+my @cols;
+my @which;
+my @missing;
+my %dir;
+for my $f (@$files) {
+	my $x = {
+		file => $f,
+	};
+	my $missing = 0;
+	if (-d $f) {
+		if (-e "$f/1.png") {
+			$x->{images} = 1;
+			push @cols, $x;
+			push @which, $f;
+		} else {
+			for my $f (`ls '$f'`) { chomp $f; $dir{$f} = 1; }
+		}
+	} else {
+		if ($x->{fh} = IO::File->new($f)) {
+			push @cols, $x;
+			push @which, $f;
+		} else {
+			$missing = 1;
+			# try globbing to match "alternative" filenames
+			# and redirect if it works
+			# this only trys to glob the leafname, and doesn't work :/
+			# XXX should do an "internal redirect", google/clean friendly?
+#			my ($dir, $leaf) = $f =~ m{(.*)/(.*)}ms;
+#			if (defined $leaf and $leaf ne "") {
+#				my @matches = glob("$dir/*.$leaf"), glob("$dir/$leaf.*"), glob("$dir/*.$leaf.*");  # XXX inefficient
+#				if (@matches == 1) {
+#					my $path = $matches[0];
+#					$path =~ s,/var/www/.*?/,,;  # XXX super dodgy!
+#					print "Location: http://word.ai.ki/x/quiki/$path\r\n\r\n";
+#					exit;
+#				} else {
+#					$missing = 1;
+#				}
+#			} else {
+#				$missing = 1;
+#			}
+		}
+	}
+	push @missing, $missing;
+}
+
+my $heading = $ENV{PATH_INFO};
+for ($heading) { s,^/,,; s,/$,,; s,(/index)?\.html$,,; }
+my ($bible_or_quran, $which, @rest) = split /\//, $heading;
+my $bible_or_quran_url = "/x/quiki/$bible_or_quran";
+my $bible_or_quran_link = qq{<A href="$bible_or_quran_url">$bible_or_quran</A>};
+my $which_url = "$bible_or_quran_url/$which";
+my $which_link = qq{<A href="$which_url">$which</A>};
+my @rest_links;
+my $rest_url = $which_url;
+for (@rest) {
+	$rest_url = "$rest_url/$_";
+	(my $spacey = $_) =~ s/_/\&nbsp;/g;
+	push @rest_links, qq{<A href="$rest_url">$spacey</A>};
+}
+$heading = join " | ", '<A href="http://word.ai.ki/">*</A>', $bible_or_quran_link, (%dir && $which ? $which_link : ()), @rest_links;
+
+my @cookies;
+if ($which) {
+	@cookies = cookie(-name=>"quiki_which_$bible_or_quran",
+			  -value=>$which,
+			  -expires=>"+10y");
+}
+
+#for ($heading, $which, @rest) { s/_/\&nbsp;/g }
+
+print header(
+	-charset => 'utf-8',
+	-last_modified => $MODIFIED_DATE,
+	-cookie=>\@cookies,
+	);
+
+print <<End;
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+</head>
+End
+
+print qq{<h1>$heading</h1>\n};
+
+if (%dir) {
+	display_dir();
+} else {
+	display_cols();
+}
+
+print <<End;
+</body>
+</html>
+End
+
+
+sub display_dir {
+	print <<End;
+<body style="margin: ${margin}px" topmargin="$margin" bottommargin="$margin" leftmargin="$margin" rightmargin="$margin" marginwidth="$margin" marginheight="$margin" link="$textcolor" vlink="$highlightcolor" alink="$highlightcolor" bgcolor="$bgcolor" text="$textcolor">
+End
+	my @keys = keys %dir;
+	for (
+		[sort (grep /,/, @keys)],
+		[sort { $a <=> $b } (grep /^[0-9]+$/, @keys)],
+		[(sort { $a <=> $b } (grep /^[0-9]+/ && !/^[0-9]+$/ && !/,/, @keys)),
+		 (sort (grep !/^[0-9]/ && !/,/, @keys))],
+		($heading =~ /\./ ? [".."] : ())
+	) {
+		for (@$_) {
+			my $ref = $ENV{REQUEST_URI};
+			$ref =~ s/\?.*//;
+			$ref .= "/" unless $ref =~ /\/$/;
+			(my $label = $_) =~ s/_/&nbsp;/g;
+			if ($ENV{QUERY_STRING} ne "") {
+				$_ .= "?$ENV{QUERY_STRING}";
+			}
+
+			if (/^\d+$/ || /\..+?\./) {  # DODGY HACK!
+				$_ =~ s,(\?|$),.html$1,;
+			} else {
+				$_ =~ s,(\?|$),/index.html$1,;
+			}
+
+			$label = "^ up ^" if $label eq "..";
+
+#			print qq{<A href="$ref$_">$label</A>&nbsp;&nbsp;\n};
+			print qq{<A href="$_">$label</A>&nbsp;&nbsp;\n};
+		}
+		print "<br><br>\n" if @$_;
+	}
+}
+
+sub display_cols {
+	my $cols_visible = @cols < $cols_per_screen ? @cols : $cols_per_screen;
+	my $col_width = int(($window_width - $margin * 2 - $col_gap * ($cols_visible-1)) / ($cols_visible||1));
+
+	print <<End;
+<body style="margin: ${margin}px" topmargin="$margin" bottommargin="$margin" leftmargin="$margin" rightmargin="$margin" marginwidth="$margin" marginheight="$margin" link="$numbercolor" vlink="$numbercolor" alink="$highlightcolor" bgcolor="$bgcolor" text="$textcolor">
+End
+
+my $n_cols = @cols;
+my $n_tds = $n_cols ? $n_cols * 2 - 1 : 0;
+
+my $full_width = $n_cols <= $cols_per_screen;
+my $table_width = $full_width ? "100%" : $n_cols * $col_width + ($n_cols-1) * $col_gap;
+
+print <<End;
+<table width="$table_width" border="0" cellspacing="0" cellpadding="0">
+End
+
+print qq{<thead><tr>};
+my $i = 0;
+for (split /,/, $which) {
+#	s,/var/www/.*?/,,;
+#	s/_/&nbsp;/g; s,^/,,; s,/$,,; # s,/,&nbsp;|&nbsp;,g;
+	unless ($missing[$i++]) {
+		my $align = /arabic|hebrew/ ? "right" : "left";
+		print qq{<td width="1"></td><th align="$align"><font size="-1">$_</font><br>&nbsp;</th>};
+	}
+}
+print qq{</tr></thead>};
+
+# link to islamawakened.com
+my $sura;
+if ($bible_or_quran eq "quran") {
+	($sura = $rest[0]) =~ s/\..*//;
+}
+
+my $number = 1;
+MAINLOOP: while (@cols) {
+	my $new_row = 1;
+	for (@cols) {
+		my ($fh, $file, $images) = ($_->{fh}, $_->{file}, $_->{images});
+		my $verse;
+		if ($images) {
+			my $images_base_url = $file;
+			$images_base_url =~ s,^/var/www/word,http://word.ai.ki,; # XXX
+			my $imgname = "$number$bow.png";
+			$verse = qq{<img src="$images_base_url/$imgname">};
+			if (! -e "$file/$imgname") { last MAINLOOP; }
+		} else {
+			$verse = <$fh>;
+			if (!defined $verse) { last MAINLOOP; }
+			chomp $verse;
+			$verse =~ s,\\(\S.*?\S|\S)\\,<i>$1</i>,g;
+			$verse =~ s,\*(.*?)\*,<b>$1</b>,g;
+			$verse =~ s,_(.*?)_,<u>$1</u>,g;
+			$verse =~ s/ ( +)/("&nbsp;" x length($1))." "/eg;
+		}
+		if ($new_row) {
+			$new_row = 0;
+			print qq{<tr>\n};
+			print qq{<td align="right" valign="top" width="1"><A name="$number" href="#$number">$number.</A>};
+			if ($bible_or_quran eq "quran") {
+				print qq{&nbsp;<A href="http://islamawakened.com/Quran/$sura/$number/">&nbsp;*&nbsp;</A>};
+			}
+			print qq{&nbsp;&nbsp;&nbsp;};
+			print qq{</td>\n};
+		} else {
+			print qq{<td>&nbsp;&nbsp;&nbsp;</td>\n};
+		}
+		my $align = "";
+		if ($file =~ /paleo/) {
+			$align=qq{ align="right"};
+			$verse =~ s/\.png/$bow.png/g;
+			$verse =~ s/> </>&nbsp;&nbsp; </g;
+			$verse = qq{<font size="+1">}.$verse."</font>";
+		} elsif ($file =~ /arabic|hebrew/) {
+			$align=qq{ align="right"};
+			$verse = qq{<font size="+1">}.$verse."</font>";
+		}
+		my $width = $full_width ? "" : qq{ width="$col_width"};
+		print <<End;
+<td$width valign="top"$align>
+$verse
+</td>
+End
+	}
+	print qq{</tr><tr><td colspan="$n_tds">&nbsp;</td></tr>\n};
+	$number++;
+}
+
+print <<End;
+</table>
+End
+
+#print <<End
+#<br>
+#<A href="index.html">^ up ^</A>
+#End
+}
+
+
+
+exit();
+
+
+
+sub expand_abbrev_path {
+	my ($path) = @_;
+
+	my @paths = ($path);
+	my @files = ();
+
+	while (@paths) {
+		my $p = shift @paths;
+		if ($p =~ /,/) {
+			$p =~ m{([^,]*(?:/|^))([^/]*)(.*)} or die "doesn't match";
+			my ($a, $b, $c) = ($1, $2, $3);
+			for my $opt ( split /,/, $b ) {
+				push @paths, "$a$opt$c";
+			}
+		} else {
+			push @files, $p;
+		}
+	}
+	return \@files;
+}
+

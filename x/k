@@ -1,0 +1,134 @@
+#!/usr/bin/perl -w
+
+use CGI ':all';
+use CGI::Carp qw(fatalsToBrowser);
+
+$debug = 0;
+
+# urls: /john/4/11 ->
+#         http://word.ai.ki/x/quiki/bible/kjv/43.john/4/11
+#       /quran/1/1
+
+# human form
+#	/john 4:11
+#	/1 john 1:1
+#	/1 john
+#
+# also  http://bible.
+
+# treat quran as a special case, briefly?  or fix urls once and for all?
+
+$path = $ENV{PATH_INFO};
+$path = lc($path);
+
+# cope with human form of URIS for bible & quran
+for ($path) {
+	s{^/}{};
+	s/ /_/g;
+	if (m{^quran}) {
+		s{^(quran)_}{$1/};
+	} else {
+		s{_(\d+([ :.,]\d+)?)$}{/$1};
+	}
+	s{^(\d+([ :.,]\d)?)$}{quran/$1};
+	s{[ :.,](\d+)$}{/$1};
+}
+
+if ($debug) {
+	print "Content-Type: text/plain\r\n\r\n$ENV{PATH_INFO}\n";
+	print "$path\n";
+}
+
+($book, $chapter, $verse) = split m{/}, $path;
+
+my $bible_or_quran = $book eq "quran" ? "quran" : "bible";
+$which = $ENV{QUERY_STRING};
+if ($which eq "") {
+	$which = cookie(-name=>"quiki_which_$bible_or_quran");
+	if ($which eq "") {
+		$which =
+		  $book eq "quran" ? "y_ali,khalifa,arabic,translit"
+		  :                  "web,kjv,hebrew,alex"
+	}
+} else {
+	for ($which) {
+		tr/+/ /;
+		s{ % ([0-9a-f] [0-9a-f]) }{chr(hex($1))}xeig;
+	}
+}
+
+$word_host = "word.ai.ki";
+$word_docroot = "/var/www/word";
+
+$path = $word_docroot;
+if ($book eq "quran") {
+	$path .= "/quran";
+	if ($chapter) {
+		$path .= "/$which/" . guess(dir("$path/arabic"), $chapter);
+		$path .= ".html";
+	} else {
+		$path .= "/$which/index.html";
+	}
+} else {
+	$path .= "/bible";
+	if ($book) {
+		$path .= "/$which/" . guess(dir("$path/web"), $book);
+		if ($chapter) {
+			$path .= "/$chapter.html";
+		} else {
+			$path .= "/index.html";
+		}
+	} else {
+		$path .= "/index.html";
+	}
+}
+
+if (defined $verse && $verse ne "") {
+	$path .= "#$verse";
+}
+
+$path = substr $path, length($word_docroot);
+$path = "http://$word_host/x/quiki$path";
+
+print "Location: $path\r\n\r\n";
+exit;
+
+sub dir {
+	my ($path) = @_;
+	opendir DIR, $path
+	  or die "unknown book!";
+	my $entries = [sort grep !/^\./, readdir DIR];
+	return $entries;
+}
+
+sub guess {
+	my ($names, $part) = @_;
+#	use Data::Dumper;
+#	print Dumper $path, $names, $part;
+	for (@$names) {
+		push @ok, $_ if
+		     $_ eq $part
+		  or starts_with($_, "$part.")
+		  or ends_with($_, ".$part")
+		  or ends_with($_, ".$part.html")
+		  or contains($_, ".$part.")
+		  or starts_with($_, "$part")
+		  or contains($_, ".$part")
+#		  or contains($_, "$part")
+	}
+	@ok >= 1
+	  or die "unknown book!";
+	return $ok[0];
+}
+
+sub starts_with {
+	return substr($_[0], 0, length($_[1])) eq $_[1];
+}
+
+sub ends_with {
+	return substr($_[0], length($_[0]) - length($_[1])) eq $_[1];
+}
+
+sub contains {
+	return index($_[0], $_[1]) >= 0;
+}

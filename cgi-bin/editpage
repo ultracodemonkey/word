@@ -1,0 +1,174 @@
+#!/usr/bin/perl -w
+
+use HTML::Entities;
+
+use strict;
+
+use CGI ':all';
+use Digest::MD5 qw(md5_hex);
+
+use vars qw/
+  $debug__ $doc_file $doc_url $editable_space_end $editable_space_start $editable_text $editor_html $doc_html
+  $pass $query $root $template_file $template_url $user $vhost $vhost_rx $rx_nl $which_section %metadata $admin_pass_crypt $password_field $secret
+/;
+
+load_conf("editpage.conf");
+
+$rx_nl = '(?:\r\n|\n|\r)';  # portable newline matching regexp
+$debug__ = 0;
+
+$vhost_rx = $vhost;
+for ($vhost_rx) { s/\./\\./g; s/\*/.*/g; }
+
+if ($F::Section || $F::UserPass) {};   # CGI parameters
+
+$query = CGI->new; $query->import_names('F');
+$root = $ENV{DOCUMENT_ROOT};
+#$doc_url = $F::URL; # = !param() ? $ENV{HTTP_REFERER} : $F::URL;
+$doc_url = $F::URL || $ENV{HTTP_REFERER};
+$which_section = $F::Section;
+defined $which_section or ohno("missing Section cgi parameter");
+# !param('Submit') ? which_edit_button() : $F::Section;
+$editable_space_start =~ s/X/$which_section/g;
+$editable_space_end =~ s/X/$which_section/g;
+($doc_file = $doc_url) =~ s,^https?://([^/]*),,;
+$1 =~ $vhost_rx or ohno("vhostname `$1' of doc_url: `$doc_url' does not match `$vhost_rx'");
+$doc_file =~ /\.\./ and ohno();
+$doc_file = "$root/$doc_file";
+$doc_file = <$doc_file/index.*> if -d $doc_file;
+$doc_html = slurp($doc_file);
+
+read_metadata($doc_html);
+
+my $pass_crypt = $metadata{$password_field};
+
+if (!param('Submit')) {
+	$doc_html =~ /\Q$editable_space_start\E$rx_nl?(.*?)\Q$editable_space_end\E/s or ohno("the editable space `$which_section' was not found");
+	$editable_text = $1;
+	$editable_text =~ tr/\r//d;
+	encode_entities($editable_text);
+#	$editable_text = html2wiki($editable_text);
+	$editor_html = slurp($template_file);
+	$editor_html = sub_template($editor_html, Text => $editable_text, URL => $doc_url, Section => $which_section);
+	print header(); print $editor_html;
+} else {
+	### we access the form with $F::Foo
+
+	my $given_pass_crypt = oneway($F::UserPass, $secret);
+	unless (
+            defined $pass_crypt and $given_pass_crypt eq $pass_crypt or
+            $given_pass_crypt eq $admin_pass_crypt) {
+		ohno("You entered the wrong password, press the `back' button then try again!"); }
+
+        if (defined $F::NewPass && $F::NewPass ne "") {
+            $metadata{$password_field} = oneway($F::NewPass, $secret); }
+
+#	$F::Text = escapeHTML($F::Text);
+	$F::Text =~ tr/\r//d;
+#	$F::Text = wiki2html($F::Text);
+	$doc_html =~
+		s{(\Q$editable_space_start\E$rx_nl?)(.*?)(\Q$editable_space_end\E)}
+		 {$1$F::Text$3}sg or ohno();
+
+	write_metadata($doc_html);
+
+	copy($doc_file, "$doc_file.old") and
+	belch($doc_html, $doc_file) or ohno("$! - Likely a permissions problem on webserver.  The webserver process needs to be able to write to the document space.");
+	print redirect($F::URL);  # XXX should force to refresh somehow...
+}
+
+#--------------------------------------------------
+
+sub sub_template {
+	my ($text, %map) = @_;
+	for my $name (keys %map) {
+		my $value = $map{$name}; $value =~ s/$rx_nl*$//;
+		$text =~ s/\$$name\b/$value/ge;
+	}
+	return $text; }
+
+sub ohno {
+	my $line = (caller)[2];
+	my $msg = "@_" || "Something is wrong; line $line";
+	print header();
+	print '<font color="red"><h1>'.$msg.'</h1></font>';
+	exit(0); }
+
+sub slurp {
+	my ($file) = @_;
+	open SLURP__H, $file;
+	my $text = join '', <SLURP__H>;
+	close SLURP__H;
+	return $text; }
+
+sub belch {
+	my ($text, $file) = @_;
+	open DUMP__H, ">$file" or return 0;
+	print DUMP__H $text; return 1; }
+
+sub copy { # XXX this is NOT ideal, should stream data
+	my ($file, $dest) = @_;
+	my $text = slurp($file);
+	belch($text, $dest);
+}
+
+sub debug {
+	$debug__++ or print header();
+	print map {my $x = escapeHTML($_); "<pre>$x</pre>"} @_;
+	print "<hr>"; }
+
+#sub which_edit_button {
+#	return param('Section');
+#	my $params = $query->Vars;
+#	for (keys %$params) { if (s/^Edit_//) { return $_; } }
+#	ohno("no button was pressed!"); }
+
+#sub html2wiki {
+#	local $_ = $_[0];
+#	s/<br>$//gm;
+#	s:&nbsp;: :g;
+#	return $_; }
+
+#sub wiki2html {
+#	local $_ = $_[0];
+#	chomp;
+#	s/$/<br>/gm; s/<br>$//;
+#	s/( +) /("&nbsp;" x length($1))." "/ge;
+#	return $_; }
+
+sub read_metadata {
+	my ($html) = @_;
+	%metadata = ();
+	while ($html =~ /<!-- :(.*?):\s*(.*?)\s*-->/sg) {
+		my ($key, $value) = ($1, $2);
+		$value =~ s/----/--/gs;
+		$metadata{$key} = $value;
+	}	
+}
+
+sub write_metadata {
+	$_[0] =~ s/\s*\z/\n/;
+
+	for my $key (sort keys %metadata) {
+		my $value = $metadata{$key};
+		$value =~ s/--/----/sg;
+		chomp $value;
+		if ($value =~ /\n/s) { $value = "\n$value\n"; }
+		$_[0] =~ s/<!-- :\Q$key\E:\s*(.*?)\s*-->/"<!-- :$key: $value -->"/se or
+		  $_[0] .= "<!-- :$key: $value -->\n";
+	}
+}
+
+sub oneway {
+	my ($pass, $key) = @_;
+	return md5_hex("$pass $key");
+}
+
+sub load_conf {
+	my ($file) = @_;
+	unless (my $return = do $file) {
+		die "couldn't parse $file: $@" if $@;
+		die "couldn't do $file: $!"    unless defined $return;
+		die "couldn't run $file"       unless $return;
+	}
+}
