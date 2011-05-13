@@ -6,7 +6,7 @@ use CGI ':all';
 
 my $MODIFIED_DATE = "Wed, 16 Nov 2005 12:44:39 GMT";
   # all replies will have this in the Last-Modified header,
-  # an attempt to get googlebot to back off!
+  # it's an attempt to get googlebot to back off!
 
 my $textcolor = "white";
 my $bgcolor = "midnightblue";
@@ -177,7 +177,8 @@ End
 				$_ =~ s,(\?|$),/index.html$1,;
 			}
 
-			$label = "^ up ^" if $label eq "..";
+#			$label = "^ up ^" if $label eq "..";
+			next if $label eq "..";
 
 #			print qq{<A href="$ref$_">$label</A>&nbsp;&nbsp;\n};
 			print qq{<A href="$_">$label</A>&nbsp;&nbsp;\n};
@@ -230,7 +231,7 @@ MAINLOOP: while (@cols) {
 		my $verse;
 		if ($images) {
 			my $images_base_url = $file;
-			$images_base_url =~ s,^/var/www/word,http://word.ai.ki,; # XXX
+			$images_base_url =~ s,^/var/www/word.*?/,http://word.ai.ki/,; # XXX more yuk than usual even
 			my $imgname = "$number$bow.png";
 			$verse = qq{<img src="$images_base_url/$imgname">};
 			if (! -e "$file/$imgname") { last MAINLOOP; }
