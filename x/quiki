@@ -181,7 +181,8 @@ End
 			next if $label eq "..";
 
 #			print qq{<A href="$ref$_">$label</A>&nbsp;&nbsp;\n};
-			print qq{<A href="$_">$label</A>&nbsp;&nbsp;\n};
+#			print qq{<A href="$_">$label</A>&nbsp;&nbsp;\n};
+			print qq{<A href="$_">$label</A><br>\n};
 		}
 		print "<br><br>\n" if @$_;
 	}
