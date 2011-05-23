@@ -133,6 +133,9 @@ print <<End;
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+a { text-decoration: none; white-space: nowrap; }
+</style>
 </head>
 End
 
@@ -162,6 +165,14 @@ End
 		 (sort (grep !/^[0-9]/ && !/,/, @keys))],
 		($heading =~ /\./ ? [".."] : ())
 	) {
+		my $div0 = qq{<div style="float:left; margin-right: 3em;">\n};
+		my $div1 = qq{</div>\n};
+		print $div0;
+		my $i;
+		my $n = @$_;
+		my $items_per_col = ($n + 2) / 3;
+		if ($items_per_col > 38) { $items_per_col = 38; }
+		if ($items_per_col < 12) { $items_per_col = 12; }
 		for (@$_) {
 			my $ref = $ENV{REQUEST_URI};
 			$ref =~ s/\?.*//;
@@ -180,11 +191,20 @@ End
 #			$label = "^ up ^" if $label eq "..";
 			next if $label eq "..";
 
+			if ($label =~ /^\d+$/) {
+				$label = "&nbsp;$label&nbsp;";
+			}
+			$label =~ s/\./. /g;
+
 #			print qq{<A href="$ref$_">$label</A>&nbsp;&nbsp;\n};
-			print qq{<A href="$_">$label</A>&nbsp;&nbsp;\n};
-#			print qq{<A href="$_">$label</A><br>\n};
+#			print qq{<A href="$_" style="white-space:nowrap;">$label</A>&nbsp;&nbsp;\n};
+			print qq{<A href="$_">$label</A><br>\n};
+			if (++$i % $items_per_col == 0) {
+				print $div1,$div0;
+			};
 		}
-		print "<br><br>\n" if @$_;
+		print $div1;
+		print qq{<br style="clear: both;"><br>\n} if @$_;
 	}
 }
 
