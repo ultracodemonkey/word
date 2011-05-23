@@ -4,7 +4,8 @@ use strict; use warnings;
 
 use CGI ':all';
 
-my $MODIFIED_DATE = "Wed, 16 Nov 2005 12:44:39 GMT";
+
+my $MODIFIED_DATE = "Mon, 23 May 2011 09:25:36 GMT";
   # all replies will have this in the Last-Modified header,
   # it's an attempt to get googlebot to back off!
 
@@ -55,6 +56,7 @@ my @cols;
 my @which;
 my @missing;
 my %dir;
+my ($prev, $next);
 for my $f (@$files) {
 	my $x = {
 		file => $f,
@@ -95,6 +97,24 @@ for my $f (@$files) {
 		}
 	}
 	push @missing, $missing;
+	if (!$missing) {
+		my ($dir, $base) = $f =~ m{(.*)/(.*)};
+		$base =~ s/\D//g;
+		my $_prev = "$dir/".($base-1);
+		my $_next = "$dir/".($base+1);
+		for ($_prev, $_next) {
+			if (! -e $_) {
+				$_ = (glob("$_.*"))[0];
+			}
+			if (defined $_) {
+				s,.*/,,;
+			}
+		}
+#		$x->{_prev} = $_prev;
+#		$x->{_next} = $_next;
+		$prev ||= $_prev;
+		$next ||= $_next;
+	}
 }
 
 my $heading = $ENV{PATH_INFO};
@@ -103,15 +123,42 @@ my ($bible_or_quran, $which, @rest) = split /\//, $heading;
 my $bible_or_quran_url = "/x/quiki/$bible_or_quran";
 my $bible_or_quran_link = qq{<A href="$bible_or_quran_url">$bible_or_quran</A>};
 my $which_url = "$bible_or_quran_url/$which";
-my $which_link = qq{<A href="$which_url">$which</A>};
+(my $which_spacey = $which) =~ s/([.,]) ?/$1 /g;
+my $which_link = qq{<A href="$which_url">$which_spacey</A>};
+my $which_link_short = qq{<A href="$which_url">*</A>};
 my @rest_links;
+my @rest_urls;
 my $rest_url = $which_url;
+push @rest_urls, $rest_url;
 for (@rest) {
 	$rest_url = "$rest_url/$_";
 	(my $spacey = $_) =~ s/_/\&nbsp;/g;
+	$spacey =~ s/([.,]) ?/$1 /g;
 	push @rest_links, qq{<A href="$rest_url">$spacey</A>};
+	push @rest_urls, $rest_url;
 }
-$heading = join " | ", '<A href="http://word.ai.ki/">*</A>', $bible_or_quran_link, (%dir && $which ? $which_link : ()), @rest_links;
+
+# check if can link to prev / next chapter / surah
+for ($prev, $next) {
+	if (defined $_) {
+		$_ = "$rest_urls[-2]/$_.html";
+	}
+}
+
+$heading = join " | ", '<A href="http://word.ai.ki/">*</A>', $bible_or_quran_link, ($which ? (%dir ? $which_link : $which_link_short) : ()), @rest_links;
+
+$heading .= " &nbsp; &nbsp; ";
+
+if ($prev) {
+	$heading .= qq{ <A href="$prev">&nbsp;&lt;&nbsp;</A>};
+} else {
+	$heading .= qq{ &nbsp;&nbsp;&nbsp;&nbsp;};
+}
+if ($next) {
+	$heading .= qq{ <A href="$next">&nbsp;&gt;&nbsp;</A>};
+} else {
+	$heading .= qq{ &nbsp;&nbsp;&nbsp;&nbsp;};
+}
 
 my @cookies;
 if ($which) {
@@ -139,8 +186,6 @@ a { text-decoration: none; white-space: nowrap; }
 </head>
 End
 
-print qq{<h1>$heading</h1>\n};
-
 if (%dir) {
 	display_dir();
 } else {
@@ -157,6 +202,8 @@ sub display_dir {
 	print <<End;
 <body style="margin: ${margin}px" topmargin="$margin" bottommargin="$margin" leftmargin="$margin" rightmargin="$margin" marginwidth="$margin" marginheight="$margin" link="$textcolor" vlink="$highlightcolor" alink="$highlightcolor" bgcolor="$bgcolor" text="$textcolor">
 End
+	print qq{<h1>$heading</h1>\n};
+
 	my @keys = keys %dir;
 	for (
 		[sort (grep /,/, @keys)],
@@ -165,8 +212,9 @@ End
 		 (sort (grep !/^[0-9]/ && !/,/, @keys))],
 		($heading =~ /\./ ? [".."] : ())
 	) {
-		my $div0 = qq{<div style="float:left; margin-right: 3em;">\n};
-		my $div1 = qq{</div>\n};
+		next unless @$_;
+		my $div0 = qq{<div style="float:left; padding-right: 3em;"><div style="padding-bottom: 1em;">\n};
+		my $div1 = qq{</div></div>\n};
 		print $div0;
 		my $i;
 		my $n = @$_;
@@ -215,6 +263,7 @@ sub display_cols {
 	print <<End;
 <body style="margin: ${margin}px" topmargin="$margin" bottommargin="$margin" leftmargin="$margin" rightmargin="$margin" marginwidth="$margin" marginheight="$margin" link="$numbercolor" vlink="$numbercolor" alink="$highlightcolor" bgcolor="$bgcolor" text="$textcolor">
 End
+	print qq{<h1>$heading</h1>\n};
 
 my $n_cols = @cols;
 my $n_tds = $n_cols ? $n_cols * 2 - 1 : 0;
@@ -322,7 +371,9 @@ sub expand_abbrev_path {
 
 	while (@paths) {
 		my $p = shift @paths;
-		if ($p =~ /,/) {
+		if ($p eq "/var/www/word.ai.ki") {  # FIXME
+		
+		} elsif ($p =~ /,/) {
 			$p =~ m{([^,]*(?:/|^))([^/]*)(.*)} or die "doesn't match";
 			my ($a, $b, $c) = ($1, $2, $3);
 			for my $opt ( split /,/, $b ) {
