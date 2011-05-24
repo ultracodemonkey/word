@@ -4,8 +4,7 @@ use strict; use warnings;
 
 use CGI ':all';
 
-
-my $MODIFIED_DATE = "Mon, 23 May 2011 09:25:36 GMT";
+my $MODIFIED_DATE = "Wed, 25 May 2011 00:00:00 GMT";
   # all replies will have this in the Last-Modified header,
   # it's an attempt to get googlebot to back off!
 
@@ -15,7 +14,10 @@ my $numbercolor = "yellow";
 my $highlightcolor = "yellow";
 my $bow = "";
 
-if (param("bow")) {
+#warn "cookies: ".join(' ', cookie());
+my $style = cookie('style');
+
+if ($style =~ /on (white|beige)/ || param("bow")) {
 	$bow = ".bow";
 	$textcolor = "black";
 	$bgcolor = "white";
@@ -38,13 +40,7 @@ my $path = $ENV{PATH_TRANSLATED};
 
 #$path =~ s,/x/quiki/[^/]*,,; # hack around weirdness with bible.nipl.net and quran.nipl.net !
 
-if ($path !~ /.html$/) {
-	warn "redir: $path";
-	$path =~ s,/var/www/.*?/,,;  # XXX super dodgy!
-	$path =~ s,/?$,/index.html,;
-	print "Location: http://word.ai.ki/x/quiki/$path\r\n\r\n";
-	exit;
-}
+my $old_path = $path;
 
 $path =~ s,(/index.html|\.html)(\?|$),$2,; # DODGY HACK!
 
@@ -99,43 +95,78 @@ for my $f (@$files) {
 	push @missing, $missing;
 	if (!$missing) {
 		my ($dir, $base) = $f =~ m{(.*)/(.*)};
-		$base =~ s/\D//g;
-		my $_prev = "$dir/".($base-1);
-		my $_next = "$dir/".($base+1);
-		for ($_prev, $_next) {
-			if (! -e $_) {
-				$_ = (glob("$_.*"))[0];
+		if ($base) {
+			$base =~ s/\D//g;
+			my $_prev = "$dir/".($base-1);
+			my $_next = "$dir/".($base+1);
+			for ($_prev, $_next) {
+				if (! -e $_) {
+					$_ = (glob("$_.*"))[0];
+				}
+				if (defined $_) {
+					s,.*/,,;
+				}
 			}
-			if (defined $_) {
-				s,.*/,,;
-			}
+	#		$x->{_prev} = $_prev;
+	#		$x->{_next} = $_next;
+			$prev ||= $_prev;
+			$next ||= $_next;
 		}
-#		$x->{_prev} = $_prev;
-#		$x->{_next} = $_next;
-		$prev ||= $_prev;
-		$next ||= $_next;
 	}
+}
+
+# do redirects if necessary
+if ($old_path !~ /.html$|\/$/) {
+	warn "redir: $old_path";
+	if (%dir) {
+		warn "dir";
+		$old_path =~ s,/var/www/.*?/,,;  # XXX super dodgy!
+		$old_path =~ s,/?$,/,;
+	} else {
+		warn "file";
+		$old_path =~ s,/var/www/.*?/,,;  # XXX super dodgy!
+		$old_path =~ s,/?$,.html,;
+	} 
+	warn "Location: http://word.ai.ki/x/quiki/$old_path\n\n";
+	print "Location: http://word.ai.ki/x/quiki/$old_path\n\n";
+	exit;
+}
+if ($old_path =~ /\/index.html$/ && $old_path ne "/var/www/word.ai.ki/index.html") {
+	warn "redir2: $old_path";
+	$old_path =~ s,/var/www/.*?/,,;  # XXX super dodgy!
+	$old_path =~ s/index.html$//;
+	warn "Location: http://word.ai.ki/x/quiki/$old_path\n\n";
+	print "Location: http://word.ai.ki/x/quiki/$old_path\n\n";
+	exit;
 }
 
 my $heading = $ENV{PATH_INFO};
 for ($heading) { s,^/,,; s,/$,,; s,(/index)?\.html$,,; }
 my ($bible_or_quran, $which, @rest) = split /\//, $heading;
 my $bible_or_quran_url = "/x/quiki/$bible_or_quran";
-my $bible_or_quran_link = qq{<A href="$bible_or_quran_url">$bible_or_quran</A>};
+my $bible_or_quran_link = qq{<A href="$bible_or_quran_url/">$bible_or_quran</A>};
 my $which_url = "$bible_or_quran_url/$which";
 (my $which_spacey = $which) =~ s/([.,]) ?/$1 /g;
-my $which_link = qq{<A href="$which_url">$which_spacey</A>};
-my $which_link_short = qq{<A href="$which_url">*</A>};
+my $which_link = qq{<A href="$which_url/">$which_spacey</A>};
+my $which_link_short = qq{<A href="$which_url/">*</A>};
 my @rest_links;
 my @rest_urls;
 my $rest_url = $which_url;
 push @rest_urls, $rest_url;
+my $i = 0;
 for (@rest) {
 	$rest_url = "$rest_url/$_";
+	my $rest_url_right = $rest_url;
+	if ($i < @rest-1 || %dir) {
+		$rest_url_right .= "/";
+	} else {
+		$rest_url_right .= ".html";
+	}
 	(my $spacey = $_) =~ s/_/\&nbsp;/g;
 	$spacey =~ s/([.,]) ?/$1 /g;
-	push @rest_links, qq{<A href="$rest_url">$spacey</A>};
+	push @rest_links, qq{<A href="$rest_url_right">$spacey</A>};
 	push @rest_urls, $rest_url;
+	++$i;
 }
 
 # check if can link to prev / next chapter / surah
@@ -180,6 +211,12 @@ print <<End;
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<link rel="stylesheet" type="text/css" href="/styles.css"/>
+<link rel="stylesheet" type="text/css" href="/bow.css" title="black on white"/>
+<link rel="alternate stylesheet" type="text/css" href="/bob.css" title="black on beige"/>
+<link rel="alternate stylesheet" type="text/css" href="/wob.css" title="white on black"/>
+<link rel="alternate stylesheet" type="text/css" href="/woblu.css" title="white on blue"/>
+<script type="text/javascript" src="/js/styleswitcher.js"></script>
 <style type="text/css">
 a { text-decoration: none; white-space: nowrap; }
 </style>
@@ -233,14 +270,15 @@ End
 			if (/^\d+$/ || /\..+?\./) {  # DODGY HACK!
 				$_ =~ s,(\?|$),.html$1,;
 			} else {
-				$_ =~ s,(\?|$),/index.html$1,;
+				$_ =~ s,(\?|$),/$1,;
 			}
 
 #			$label = "^ up ^" if $label eq "..";
 			next if $label eq "..";
 
 			if ($label =~ /^\d+$/) {
-				$label = "&nbsp;$label&nbsp;";
+				my $section = $rest[-1] =~ /psalms/i ? "Psalm" : "Chapter";
+				$label = "$section&nbsp;$label";
 			}
 			$label =~ s/\./. /g;
 
@@ -268,7 +306,7 @@ End
 my $n_cols = @cols;
 my $n_tds = $n_cols ? $n_cols * 2 - 1 : 0;
 
-my $full_width = $n_cols <= $cols_per_screen;
+my $full_width = 0; # $n_cols <= $cols_per_screen;
 my $table_width = $full_width ? "100%" : $n_cols * $col_width + ($n_cols-1) * $col_gap;
 
 print <<End;

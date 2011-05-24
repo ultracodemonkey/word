@@ -1,0 +1,5 @@
+body { background-color: black; color: white; }
+A:link { color: white; }
+A:visited { color: yellow; }
+A:active { color: yellow; }
+A:hover { color: yellow; }
