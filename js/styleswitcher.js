@@ -1,3 +1,6 @@
+// thanks to Paul Sowden for this script:
+//   http://www.alistapart.com/articles/alternate/
+
 function setActiveStyleSheet(title) {
   var i, a, main;
   for(i=0; (a = document.getElementsByTagName("link")[i]); i++) {

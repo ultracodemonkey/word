@@ -4,7 +4,7 @@ use strict; use warnings;
 
 use CGI ':all';
 
-my $MODIFIED_DATE = "Wed, 25 May 2011 00:00:00 GMT";
+my $MODIFIED_DATE = "Wed, 24 May 2011 00:00:00 GMT";
   # all replies will have this in the Last-Modified header,
   # it's an attempt to get googlebot to back off!
 
@@ -15,7 +15,7 @@ my $highlightcolor = "yellow";
 my $bow = "";
 
 #warn "cookies: ".join(' ', cookie());
-my $style = cookie('style');
+my $style = cookie('style') || "";
 
 if ($style =~ /on (white|beige)/ || param("bow")) {
 	$bow = ".bow";
@@ -117,25 +117,25 @@ for my $f (@$files) {
 
 # do redirects if necessary
 if ($old_path !~ /.html$|\/$/) {
-	warn "redir: $old_path";
+#	warn "redir: $old_path";
 	if (%dir) {
-		warn "dir";
+#		warn "dir";
 		$old_path =~ s,/var/www/.*?/,,;  # XXX super dodgy!
 		$old_path =~ s,/?$,/,;
 	} else {
-		warn "file";
+#		warn "file";
 		$old_path =~ s,/var/www/.*?/,,;  # XXX super dodgy!
 		$old_path =~ s,/?$,.html,;
 	} 
-	warn "Location: http://word.ai.ki/x/quiki/$old_path\n\n";
+#	warn "Location: http://word.ai.ki/x/quiki/$old_path\n\n";
 	print "Location: http://word.ai.ki/x/quiki/$old_path\n\n";
 	exit;
 }
 if ($old_path =~ /\/index.html$/ && $old_path ne "/var/www/word.ai.ki/index.html") {
-	warn "redir2: $old_path";
+#	warn "redir2: $old_path";
 	$old_path =~ s,/var/www/.*?/,,;  # XXX super dodgy!
 	$old_path =~ s/index.html$//;
-	warn "Location: http://word.ai.ki/x/quiki/$old_path\n\n";
+#	warn "Location: http://word.ai.ki/x/quiki/$old_path\n\n";
 	print "Location: http://word.ai.ki/x/quiki/$old_path\n\n";
 	exit;
 }
@@ -143,6 +143,8 @@ if ($old_path =~ /\/index.html$/ && $old_path ne "/var/www/word.ai.ki/index.html
 my $heading = $ENV{PATH_INFO};
 for ($heading) { s,^/,,; s,/$,,; s,(/index)?\.html$,,; }
 my ($bible_or_quran, $which, @rest) = split /\//, $heading;
+$bible_or_quran||="";
+$which||="";
 my $bible_or_quran_url = "/x/quiki/$bible_or_quran";
 my $bible_or_quran_link = qq{<A href="$bible_or_quran_url/">$bible_or_quran</A>};
 my $which_url = "$bible_or_quran_url/$which";
@@ -234,6 +236,10 @@ print <<End;
 </html>
 End
 
+sub numsort {
+	no warnings;
+	$a <=> $b;
+}
 
 sub display_dir {
 	print <<End;
@@ -244,8 +250,8 @@ End
 	my @keys = keys %dir;
 	for (
 		[sort (grep /,/, @keys)],
-		[sort { $a <=> $b } (grep /^[0-9]+$/, @keys)],
-		[(sort { $a <=> $b } (grep /^[0-9]+/ && !/^[0-9]+$/ && !/,/, @keys)),
+		[sort numsort (grep /^[0-9]+$/, @keys)],
+		[(sort numsort (grep /^[0-9]+/ && !/^[0-9]+$/ && !/,/, @keys)),
 		 (sort (grep !/^[0-9]/ && !/,/, @keys))],
 		($heading =~ /\./ ? [".."] : ())
 	) {
