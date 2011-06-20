@@ -139,6 +139,13 @@ if ($old_path =~ /\/index.html$/ && $old_path ne "/var/www/word.ai.ki/index.html
 	print "Location: http://word.ai.ki/x/quiki/$old_path\n\n";
 	exit;
 }
+warn "old path: $old_path\n";
+if ($old_path =~ / |\xc2\xa0/) {
+	$old_path =~ s,/var/www/.*?/,,;  # XXX super dodgy!
+	$old_path =~ s/ |\xc2\xa0/_/g;
+	print "Location: http://word.ai.ki/x/quiki/$old_path\n\n";
+	exit;
+}
 
 my $heading = $ENV{PATH_INFO};
 for ($heading) { s,^/,,; s,/$,,; s,(/index)?\.html$,,; }
