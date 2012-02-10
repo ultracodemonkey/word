@@ -6,7 +6,7 @@ use CGI::Carp qw(fatalsToBrowser);
 $debug = 0;
 
 # urls: /john/4/11 ->
-#         http://word.ai.ki/x/quiki/bible/kjv/43.john/4/11
+#         http://word.nipl.net/x/quiki/bible/kjv/43.john/4/11
 #       /quran/1/1
 
 # human form
@@ -57,7 +57,7 @@ if ($which eq "") {
 	}
 }
 
-$word_host = "word.ai.ki";
+$word_host = "word.nipl.net";
 $word_docroot = "/var/www/word";
 
 $path = $word_docroot;

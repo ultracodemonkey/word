@@ -82,7 +82,7 @@ for my $f (@$files) {
 #				if (@matches == 1) {
 #					my $path = $matches[0];
 #					$path =~ s,/var/www/.*?/,,;  # XXX super dodgy!
-#					print "Location: http://word.ai.ki/x/quiki/$path\r\n\r\n";
+#					print "Location: http://word.nipl.net/x/quiki/$path\r\n\r\n";
 #					exit;
 #				} else {
 #					$missing = 1;
@@ -127,23 +127,23 @@ if ($old_path !~ /.html$|\/$/) {
 		$old_path =~ s,/var/www/.*?/,,;  # XXX super dodgy!
 		$old_path =~ s,/?$,.html,;
 	} 
-#	warn "Location: http://word.ai.ki/x/quiki/$old_path\n\n";
-	print "Location: http://word.ai.ki/x/quiki/$old_path\n\n";
+#	warn "Location: http://word.nipl.net/x/quiki/$old_path\n\n";
+	print "Location: http://word.nipl.net/x/quiki/$old_path\n\n";
 	exit;
 }
-if ($old_path =~ /\/index.html$/ && $old_path ne "/var/www/word.ai.ki/index.html") {
+if ($old_path =~ /\/index.html$/ && $old_path ne "/var/www/word.nipl.net/index.html") {
 #	warn "redir2: $old_path";
 	$old_path =~ s,/var/www/.*?/,,;  # XXX super dodgy!
 	$old_path =~ s/index.html$//;
-#	warn "Location: http://word.ai.ki/x/quiki/$old_path\n\n";
-	print "Location: http://word.ai.ki/x/quiki/$old_path\n\n";
+#	warn "Location: http://word.nipl.net/x/quiki/$old_path\n\n";
+	print "Location: http://word.nipl.net/x/quiki/$old_path\n\n";
 	exit;
 }
 warn "old path: $old_path\n";
 if ($old_path =~ / |\xc2\xa0/) {
 	$old_path =~ s,/var/www/.*?/,,;  # XXX super dodgy!
 	$old_path =~ s/ |\xc2\xa0/_/g;
-	print "Location: http://word.ai.ki/x/quiki/$old_path\n\n";
+	print "Location: http://word.nipl.net/x/quiki/$old_path\n\n";
 	exit;
 }
 
@@ -185,7 +185,7 @@ for ($prev, $next) {
 	}
 }
 
-$heading = join " | ", '<A href="http://word.ai.ki/">*</A>', $bible_or_quran_link, ($which ? (%dir ? $which_link : $which_link_short) : ()), @rest_links;
+$heading = join " | ", '<A href="http://word.nipl.net/">*</A>', $bible_or_quran_link, ($which ? (%dir ? $which_link : $which_link_short) : ()), @rest_links;
 
 $heading .= " &nbsp; &nbsp; ";
 
@@ -352,7 +352,7 @@ MAINLOOP: while (@cols) {
 		my $verse;
 		if ($images) {
 			my $images_base_url = $file;
-			$images_base_url =~ s,^/var/www/word.*?/,http://word.ai.ki/,; # XXX more yuk than usual even
+			$images_base_url =~ s,^/var/www/word.*?/,http://word.nipl.net/,; # XXX more yuk than usual even
 			my $imgname = "$number$bow.png";
 			$verse = qq{<img src="$images_base_url/$imgname">};
 			if (! -e "$file/$imgname") { last MAINLOOP; }
@@ -422,7 +422,7 @@ sub expand_abbrev_path {
 
 	while (@paths) {
 		my $p = shift @paths;
-		if ($p eq "/var/www/word.ai.ki") {  # FIXME
+		if ($p eq "/var/www/word.nipl.net") {  # FIXME
 		
 		} elsif ($p =~ /,/) {
 			$p =~ m{([^,]*(?:/|^))([^/]*)(.*)} or die "doesn't match";
