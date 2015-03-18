@@ -1,7 +1,23 @@
-Crawl-delay: 600
+Crawl-delay: 60
 
-# start nipl.net common robots.txt
-User-Agent: OmniExplorer_Bot
+User-agent: AhrefsBot
 Disallow: /
-# end
+
+User-agent: Ezooms
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: 007ac9
+Disallow: /
+
+User-agent: Wotbox
+Disallow: /
+
+User-agent: SMTBot
+Disallow: /
 
